@@ -11,7 +11,7 @@ import sacrebleu
 import numpy as np
 import torch
 
-MODEL_NAME = "facebook/nllb-200-distilled-600M"
+MODEL_NAME = "facebook/nllb-200-distilled-300M"
 
 def load_json(path):
     with open(path, encoding="utf-8") as f:
