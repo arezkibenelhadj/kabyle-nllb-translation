@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
     training_args = Seq2SeqTrainingArguments(
         output_dir=f"models/{args.dataset}",
-        evaluation_strategy="no",
+        eval_strategy="no",
         save_strategy="epoch",
         learning_rate=3e-5,
         per_device_train_batch_size=1,
