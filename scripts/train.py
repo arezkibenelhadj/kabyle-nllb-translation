@@ -41,7 +41,7 @@ def normalize_text(text):
     text = " ".join(text.split())
     return text
 
-MAX_LENGTH = 96
+MAX_LENGTH = 48
 
 def preprocess(example):
     inputs = tokenizer(
