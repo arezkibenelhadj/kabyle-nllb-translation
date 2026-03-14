@@ -7,6 +7,7 @@ import argparse
 import torch
 import numpy as np
 import sacrebleu
+from transformers import BitsAndBytesConfig
 
 from datasets import Dataset
 from transformers import (
@@ -153,9 +154,15 @@ if __name__ == "__main__":
     train_ds = train_ds.map(preprocess, batched=False)
     dev_ds = dev_ds.map(preprocess, batched=False)
 
+    from transformers import BitsAndBytesConfig
+
+    bnb_config = BitsAndBytesConfig(
+        load_in_8bit=True
+    )
+
     model = AutoModelForSeq2SeqLM.from_pretrained(
         MODEL_NAME,
-        load_in_8bit=True,
+        quantization_config=bnb_config,
         device_map="auto"
     )
 
