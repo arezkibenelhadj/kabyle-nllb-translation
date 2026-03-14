@@ -24,7 +24,7 @@ from peft import (
 )
 
 MODEL_NAME = "facebook/nllb-200-distilled-600M"
-MAX_LENGTH = 48
+MAX_LENGTH = 32
 
 
 def load_json(path):
@@ -198,7 +198,7 @@ if __name__ == "__main__":
         logging_steps=100,
         learning_rate=3e-5,
         per_device_train_batch_size=1,
-        gradient_accumulation_steps=8,
+        gradient_accumulation_steps=4,
         num_train_epochs=1,
         fp16=True,
     )
