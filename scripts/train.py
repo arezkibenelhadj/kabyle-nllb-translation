@@ -24,7 +24,7 @@ from peft import (
 )
 
 MODEL_NAME = "facebook/nllb-200-distilled-600M"
-MAX_LENGTH = 32
+MAX_LENGTH = 24
 
 
 def load_json(path):
