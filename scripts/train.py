@@ -191,27 +191,16 @@ if __name__ == "__main__":
     model.config.use_cache = False
 
     training_args = Seq2SeqTrainingArguments(
-
-        output_dir=f"models/{args.dataset}",
-
-        learning_rate=3e-4,
-
-        per_device_train_batch_size=1,
-        gradient_accumulation_steps=4,
-
-        num_train_epochs=3,
-
-        save_strategy="epoch",
-
+        output_dir="/kaggle/working/models/kab_en",
+        save_strategy="steps",
+        save_steps=2000,
+        save_total_limit=3,
         logging_steps=100,
-
-        predict_with_generate=False,
-
+        learning_rate=3e-5,
+        per_device_train_batch_size=1,
+        gradient_accumulation_steps=8,
+        num_train_epochs=1,
         fp16=True,
-
-        save_total_limit=2,
-
-        report_to="none"
     )
 
     trainer = Seq2SeqTrainer(
