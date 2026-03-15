@@ -5,16 +5,16 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import json
 import argparse
 import torch
-import numpy as np
 import sacrebleu
-from transformers import BitsAndBytesConfig
 
 from datasets import Dataset
+
 from transformers import (
     AutoTokenizer,
     AutoModelForSeq2SeqLM,
     Seq2SeqTrainer,
-    Seq2SeqTrainingArguments
+    Seq2SeqTrainingArguments,
+    BitsAndBytesConfig
 )
 
 from peft import (
@@ -68,25 +68,23 @@ def preprocess(example):
         example["source"],
         truncation=True,
         padding="max_length",
-        max_length=MAX_LENGTH,
+        max_length=MAX_LENGTH
     )
 
     targets = tokenizer(
         example["target"],
         truncation=True,
         padding="max_length",
-        max_length=MAX_LENGTH,
+        max_length=MAX_LENGTH
     )
 
     inputs["labels"] = targets["input_ids"]
-
     return inputs
 
 
 def generate_and_score(model, tokenizer, dataset, batch_size=8):
 
     model.eval()
-
     device = next(model.parameters()).device
 
     preds = []
@@ -96,7 +94,7 @@ def generate_and_score(model, tokenizer, dataset, batch_size=8):
 
     for i in range(0, n, batch_size):
 
-        batch = dataset[i:i+batch_size]
+        batch = dataset[i:i + batch_size]
 
         inputs = tokenizer(
             batch["source"],
@@ -109,7 +107,6 @@ def generate_and_score(model, tokenizer, dataset, batch_size=8):
         inputs = {k: v.to(device) for k, v in inputs.items()}
 
         with torch.no_grad():
-
             outputs = model.generate(
                 **inputs,
                 max_length=MAX_LENGTH,
@@ -122,24 +119,19 @@ def generate_and_score(model, tokenizer, dataset, batch_size=8):
         refs.extend(batch["target"])
 
     bleu = sacrebleu.corpus_bleu(preds, [refs])
-
     return bleu.score
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-
     parser.add_argument("--dataset", type=str, required=True)
-
     args = parser.parse_args()
 
     if args.dataset == "kab_en":
         TARGET_LANG = "en"
-
     elif args.dataset == "kab_fr":
         TARGET_LANG = "fr"
-
     else:
         raise ValueError("dataset must be kab_en or kab_fr")
 
@@ -154,23 +146,20 @@ if __name__ == "__main__":
     train_ds = train_ds.map(preprocess, batched=False)
     dev_ds = dev_ds.map(preprocess, batched=False)
 
-    from transformers import BitsAndBytesConfig
-
-    bnb_config = BitsAndBytesConfig(
-        load_in_8bit=True
-    )
+    bnb_config = BitsAndBytesConfig(load_in_8bit=True)
 
     model = AutoModelForSeq2SeqLM.from_pretrained(
         MODEL_NAME,
-        load_in_8bit=True,
-        device_map="auto"
+        quantization_config=bnb_config,
+        device_map="auto",
+        low_cpu_mem_usage=True
     )
 
     model = prepare_model_for_kbit_training(model)
 
     lora_config = LoraConfig(
-        r=16,
-        lora_alpha=32,
+        r=8,
+        lora_alpha=16,
         target_modules=[
             "q_proj",
             "k_proj",
@@ -187,8 +176,8 @@ if __name__ == "__main__":
     model = get_peft_model(model, lora_config)
 
     model.gradient_checkpointing_enable()
-
     model.config.use_cache = False
+    model.config.tie_word_embeddings = False
 
     training_args = Seq2SeqTrainingArguments(
         output_dir="/kaggle/working/models/kab_en",
@@ -198,9 +187,9 @@ if __name__ == "__main__":
         logging_steps=100,
         learning_rate=3e-5,
         per_device_train_batch_size=1,
-        gradient_accumulation_steps=16,
+        gradient_accumulation_steps=4,
         num_train_epochs=1,
-        fp16=True,
+        fp16=True
     )
 
     trainer = Seq2SeqTrainer(
@@ -216,9 +205,7 @@ if __name__ == "__main__":
     trainer.save_model(training_args.output_dir)
 
     bleu_score = generate_and_score(model, tokenizer, dev_ds)
-
     print("DEV BLEU =", bleu_score)
 
     test_bleu = generate_and_score(model, tokenizer, test_ds)
-
     print("TEST BLEU =", test_bleu)
