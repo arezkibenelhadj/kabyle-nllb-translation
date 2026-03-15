@@ -162,7 +162,7 @@ if __name__ == "__main__":
 
     model = AutoModelForSeq2SeqLM.from_pretrained(
         MODEL_NAME,
-        quantization_config=bnb_config,
+        load_in_8bit=True,
         device_map="auto"
     )
 
@@ -198,7 +198,7 @@ if __name__ == "__main__":
         logging_steps=100,
         learning_rate=3e-5,
         per_device_train_batch_size=1,
-        gradient_accumulation_steps=4,
+        gradient_accumulation_steps=16,
         num_train_epochs=1,
         fp16=True,
     )
