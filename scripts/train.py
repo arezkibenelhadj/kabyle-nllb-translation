@@ -1,36 +1,23 @@
 import os
-os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import json
 import argparse
 import torch
 import sacrebleu
-
 from datasets import Dataset
-
-from transformers import (
-    AutoTokenizer,
-    AutoModelForSeq2SeqLM,
-    Seq2SeqTrainer,
-    Seq2SeqTrainingArguments,
-    BitsAndBytesConfig
-)
-
-from peft import (
-    LoraConfig,
-    get_peft_model,
-    prepare_model_for_kbit_training
-)
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
+from transformers import BitsAndBytesConfig
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
 MODEL_NAME = "facebook/nllb-200-distilled-600M"
-MAX_LENGTH = 16
-
+MAX_LENGTH = 24
 
 def load_json(path):
     with open(path, encoding="utf-8") as f:
         return json.load(f)
-
 
 def load_dataset(dataset):
     base = f"data/{dataset}"
@@ -39,14 +26,12 @@ def load_dataset(dataset):
     test = Dataset.from_list(load_json(f"{base}/test.json"))
     return train, dev, test
 
-
 def normalize_text(text):
     import unicodedata
     text = unicodedata.normalize("NFC", text)
     text = text.replace("ʕ", "ɛ")
     text = " ".join(text.split())
     return text
-
 
 def add_language_tokens(example):
     source = normalize_text(example["source"])
@@ -61,7 +46,6 @@ def add_language_tokens(example):
         example["target"] = "fra_Latn " + target
 
     return example
-
 
 def preprocess(example):
     inputs = tokenizer(
@@ -81,7 +65,6 @@ def preprocess(example):
     inputs["labels"] = targets["input_ids"]
     return inputs
 
-
 def generate_and_score(model, tokenizer, dataset, batch_size=8):
 
     model.eval()
@@ -94,7 +77,7 @@ def generate_and_score(model, tokenizer, dataset, batch_size=8):
 
     for i in range(0, n, batch_size):
 
-        batch = dataset[i:i + batch_size]
+        batch = dataset[i:i+batch_size]
 
         inputs = tokenizer(
             batch["source"],
@@ -110,7 +93,7 @@ def generate_and_score(model, tokenizer, dataset, batch_size=8):
             outputs = model.generate(
                 **inputs,
                 max_length=MAX_LENGTH,
-                num_beams=1
+                num_beams=4
             )
 
         decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
@@ -120,7 +103,6 @@ def generate_and_score(model, tokenizer, dataset, batch_size=8):
 
     bleu = sacrebleu.corpus_bleu(preds, [refs])
     return bleu.score
-
 
 if __name__ == "__main__":
 
@@ -141,29 +123,30 @@ if __name__ == "__main__":
     dev_ds = dev_ds.map(add_language_tokens)
     test_ds = test_ds.map(add_language_tokens)
 
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-    train_ds = train_ds.map(preprocess, batched=False)
-    dev_ds = dev_ds.map(preprocess, batched=False)
+    train_ds = train_ds.map(preprocess)
+    dev_ds = dev_ds.map(preprocess)
 
-    bnb_config = BitsAndBytesConfig(load_in_8bit=True)
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_use_double_quant=True
+    )
 
     model = AutoModelForSeq2SeqLM.from_pretrained(
         MODEL_NAME,
         quantization_config=bnb_config,
-        device_map="auto",
-        low_cpu_mem_usage=True
+        device_map="auto"
     )
 
     model = prepare_model_for_kbit_training(model)
 
     lora_config = LoraConfig(
-        r=2,
-        lora_alpha=4,
-        target_modules=[
-            "q_proj",
-            "v_proj"
-        ],
+        r=8,
+        lora_alpha=16,
+        target_modules=["q_proj","v_proj"],
         lora_dropout=0.05,
         bias="none",
         task_type="SEQ_2_SEQ_LM"
@@ -173,10 +156,9 @@ if __name__ == "__main__":
 
     model.gradient_checkpointing_enable()
     model.config.use_cache = False
-    model.config.tie_word_embeddings = False
 
     training_args = Seq2SeqTrainingArguments(
-        output_dir="/kaggle/working/models/kab_en",
+        output_dir="/kaggle/working/models/kab",
         save_strategy="steps",
         save_steps=2000,
         save_total_limit=3,
@@ -185,17 +167,16 @@ if __name__ == "__main__":
         per_device_train_batch_size=1,
         gradient_accumulation_steps=1,
         num_train_epochs=1,
-        max_steps=10000,
         fp16=True
     )
 
     trainer = Seq2SeqTrainer(
         model=model,
         args=training_args,
-        train_dataset=train_ds,
-        eval_dataset=None,
-        processing_class=tokenizer
+        train_dataset=train_ds
     )
+
+    torch.cuda.empty_cache()
 
     trainer.train()
 
