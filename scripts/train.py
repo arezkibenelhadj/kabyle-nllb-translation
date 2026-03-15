@@ -158,8 +158,8 @@ if __name__ == "__main__":
     model = prepare_model_for_kbit_training(model)
 
     lora_config = LoraConfig(
-        r=4,
-        lora_alpha=8,
+        r=2,
+        lora_alpha=4,
         target_modules=[
             "q_proj",
             "v_proj"
@@ -185,6 +185,7 @@ if __name__ == "__main__":
         per_device_train_batch_size=1,
         gradient_accumulation_steps=1,
         num_train_epochs=1,
+        max_steps=10000
         fp16=True
     )
 
