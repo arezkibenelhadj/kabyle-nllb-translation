@@ -185,7 +185,7 @@ if __name__ == "__main__":
         per_device_train_batch_size=1,
         gradient_accumulation_steps=1,
         num_train_epochs=1,
-        max_steps=10000
+        max_steps=10000,
         fp16=True
     )
 
