@@ -110,7 +110,7 @@ def generate_and_score(model, tokenizer, dataset, batch_size=8):
             outputs = model.generate(
                 **inputs,
                 max_length=MAX_LENGTH,
-                num_beams=4
+                num_beams=1
             )
 
         decoded = tokenizer.batch_decode(outputs, skip_special_tokens=True)
@@ -158,17 +158,13 @@ if __name__ == "__main__":
     model = prepare_model_for_kbit_training(model)
 
     lora_config = LoraConfig(
-        r=8,
-        lora_alpha=16,
+        r=4,
+        lora_alpha=8,
         target_modules=[
             "q_proj",
-            "k_proj",
-            "v_proj",
-            "o_proj",
-            "fc1",
-            "fc2"
+            "v_proj"
         ],
-        lora_dropout=0.1,
+        lora_dropout=0.05,
         bias="none",
         task_type="SEQ_2_SEQ_LM"
     )
@@ -187,7 +183,7 @@ if __name__ == "__main__":
         logging_steps=100,
         learning_rate=3e-5,
         per_device_train_batch_size=1,
-        gradient_accumulation_steps=4,
+        gradient_accumulation_steps=1,
         num_train_epochs=1,
         fp16=True
     )
