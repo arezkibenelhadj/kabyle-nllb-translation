@@ -1,5 +1,5 @@
 import os
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import json
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     model = AutoModelForSeq2SeqLM.from_pretrained(
         MODEL_NAME,
         quantization_config=bnb_config,
-        device_map="auto"
+        device_map={"": 0}
     )
 
     model = prepare_model_for_kbit_training(model)
