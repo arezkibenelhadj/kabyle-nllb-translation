@@ -12,7 +12,7 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from safetensors.torch import save_file
 
 MODEL_NAME = "facebook/nllb-200-distilled-600M"
-MAX_LENGTH = 24
+MAX_LENGTH = 64
 OUTPUT_DIR = "/content/drive/MyDrive/kab_model"
 DATASET_NAME = "kab_en"
 
@@ -50,7 +50,7 @@ def preprocess(example):
     inputs["labels"] = targets["input_ids"]
     return inputs
 
-def generate_and_score(model, tokenizer, dataset, batch_size=8):
+def generate_and_score(model, tokenizer, dataset, batch_size=16):
     model.eval()
     device = next(model.parameters()).device
     preds, refs = [], []
@@ -74,55 +74,78 @@ if __name__ == "__main__":
     else:
         raise ValueError("dataset must be kab_en or kab_fr")
 
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
     train_ds, dev_ds, test_ds = load_dataset(DATASET_NAME)
     train_ds = train_ds.map(add_language_tokens)
     dev_ds = dev_ds.map(add_language_tokens)
     test_ds = test_ds.map(add_language_tokens)
+
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+
     train_ds = train_ds.map(preprocess)
     dev_ds = dev_ds.map(preprocess)
 
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_compute_dtype=torch.bfloat16,
         bnb_4bit_use_double_quant=True
     )
 
     model = AutoModelForSeq2SeqLM.from_pretrained(
         MODEL_NAME,
         quantization_config=bnb_config,
-        device_map={"": 0}
+        device_map="auto"
     )
 
     model = prepare_model_for_kbit_training(model)
-    lora_config = LoraConfig(r=8, lora_alpha=16, target_modules=["q_proj","v_proj"], lora_dropout=0.05, bias="none", task_type="SEQ_2_SEQ_LM")
+
+    lora_config = LoraConfig(
+        r=16,
+        lora_alpha=32,
+        target_modules=["q_proj","v_proj"],
+        lora_dropout=0.1,
+        bias="none",
+        task_type="SEQ_2_SEQ_LM"
+    )
+
     model = get_peft_model(model, lora_config)
+
     model.gradient_checkpointing_enable()
     model.config.use_cache = False
 
     training_args = Seq2SeqTrainingArguments(
         output_dir=OUTPUT_DIR,
         save_strategy="steps",
-        save_steps=2000,
+        save_steps=1000,
         save_total_limit=3,
-        logging_steps=100,
-        learning_rate=3e-5,
-        per_device_train_batch_size=4,
+        logging_steps=50,
+        learning_rate=2e-5,
+        per_device_train_batch_size=8,
         gradient_accumulation_steps=2,
-        num_train_epochs=1,
-        fp16=True,
+        num_train_epochs=2,
+        bf16=True,
         report_to="none"
     )
 
-    trainer = Seq2SeqTrainer(model=model, args=training_args, train_dataset=train_ds, eval_dataset=dev_ds)
+    trainer = Seq2SeqTrainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_ds,
+        eval_dataset=dev_ds
+    )
+
     torch.cuda.empty_cache()
+
     last_checkpoint = get_last_checkpoint(OUTPUT_DIR)
     trainer.train(resume_from_checkpoint=last_checkpoint)
+
     save_file(model.state_dict(), f"{OUTPUT_DIR}/pytorch_model.safetensors")
     tokenizer.save_pretrained(OUTPUT_DIR)
 
     bleu_dev = generate_and_score(model, tokenizer, dev_ds)
     print("DEV BLEU =", bleu_dev)
+
     bleu_test = generate_and_score(model, tokenizer, test_ds)
     print("TEST BLEU =", bleu_test)
