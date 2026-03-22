@@ -108,8 +108,8 @@ if __name__ == "__main__":
         save_total_limit=3,
         logging_steps=100,
         learning_rate=3e-5,
-        per_device_train_batch_size=1,
-        gradient_accumulation_steps=1,
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=2,
         num_train_epochs=1,
         fp16=True,
         report_to="none"
