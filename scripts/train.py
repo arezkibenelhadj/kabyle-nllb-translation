@@ -2,6 +2,9 @@ import os
 os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+from google.colab import drive
+drive.mount('/content/drive')
+
 import json
 import argparse
 import torch
@@ -14,6 +17,7 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
 MODEL_NAME = "facebook/nllb-200-distilled-600M"
 MAX_LENGTH = 24
+OUTPUT_DIR = "/content/drive/MyDrive/kab_model"
 
 def load_json(path):
     with open(path, encoding="utf-8") as f:
@@ -66,7 +70,6 @@ def preprocess(example):
     return inputs
 
 def generate_and_score(model, tokenizer, dataset, batch_size=8):
-
     model.eval()
     device = next(model.parameters()).device
 
@@ -76,7 +79,6 @@ def generate_and_score(model, tokenizer, dataset, batch_size=8):
     n = len(dataset)
 
     for i in range(0, n, batch_size):
-
         batch = dataset[i:i+batch_size]
 
         inputs = tokenizer(
@@ -106,18 +108,16 @@ def generate_and_score(model, tokenizer, dataset, batch_size=8):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, required=True)
-    args = parser.parse_args()
+    dataset_name = "kab_en"
 
-    if args.dataset == "kab_en":
+    if dataset_name == "kab_en":
         TARGET_LANG = "en"
-    elif args.dataset == "kab_fr":
+    elif dataset_name == "kab_fr":
         TARGET_LANG = "fr"
     else:
         raise ValueError("dataset must be kab_en or kab_fr")
 
-    train_ds, dev_ds, test_ds = load_dataset(args.dataset)
+    train_ds, dev_ds, test_ds = load_dataset(dataset_name)
 
     train_ds = train_ds.map(add_language_tokens)
     dev_ds = dev_ds.map(add_language_tokens)
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     model.config.use_cache = False
 
     training_args = Seq2SeqTrainingArguments(
-        output_dir="/kaggle/working/models/kab",
+        output_dir=OUTPUT_DIR,
         save_strategy="steps",
         save_steps=2000,
         save_total_limit=3,
@@ -167,7 +167,8 @@ if __name__ == "__main__":
         per_device_train_batch_size=1,
         gradient_accumulation_steps=1,
         num_train_epochs=1,
-        fp16=True
+        fp16=True,
+        report_to="none"
     )
 
     trainer = Seq2SeqTrainer(
@@ -180,7 +181,7 @@ if __name__ == "__main__":
 
     trainer.train()
 
-    trainer.save_model(training_args.output_dir)
+    trainer.save_model(OUTPUT_DIR)
 
     bleu_score = generate_and_score(model, tokenizer, dev_ds)
     print("DEV BLEU =", bleu_score)
