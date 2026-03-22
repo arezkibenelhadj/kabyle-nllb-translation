@@ -2,20 +2,17 @@ import os
 os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+from google.colab import drive
+drive.mount('/content/drive')
 
 import json
 import torch
 import sacrebleu
 from datasets import Dataset
-from transformers import (
-    AutoTokenizer,
-    AutoModelForSeq2SeqLM,
-    Seq2SeqTrainer,
-    Seq2SeqTrainingArguments,
-    BitsAndBytesConfig
-)
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, Seq2SeqTrainer, Seq2SeqTrainingArguments, BitsAndBytesConfig
 from transformers.trainer_utils import get_last_checkpoint
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from safetensors.torch import save_file
 
 MODEL_NAME = "facebook/nllb-200-distilled-600M"
 MAX_LENGTH = 24
@@ -84,7 +81,6 @@ if __name__ == "__main__":
     train_ds = train_ds.map(add_language_tokens)
     dev_ds = dev_ds.map(add_language_tokens)
     test_ds = test_ds.map(add_language_tokens)
-
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     train_ds = train_ds.map(preprocess)
     dev_ds = dev_ds.map(preprocess)
@@ -103,16 +99,7 @@ if __name__ == "__main__":
     )
 
     model = prepare_model_for_kbit_training(model)
-
-    lora_config = LoraConfig(
-        r=8,
-        lora_alpha=16,
-        target_modules=["q_proj", "v_proj"],
-        lora_dropout=0.05,
-        bias="none",
-        task_type="SEQ_2_SEQ_LM"
-    )
-
+    lora_config = LoraConfig(r=8, lora_alpha=16, target_modules=["q_proj","v_proj"], lora_dropout=0.05, bias="none", task_type="SEQ_2_SEQ_LM")
     model = get_peft_model(model, lora_config)
     model.gradient_checkpointing_enable()
     model.config.use_cache = False
@@ -128,24 +115,14 @@ if __name__ == "__main__":
         gradient_accumulation_steps=1,
         num_train_epochs=1,
         fp16=True,
-        report_to="none",
-        eval_strategy="steps",
-        save_format="safetensors",
-        eval_steps=2000
+        report_to="none"
     )
 
-    trainer = Seq2SeqTrainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_ds,
-        eval_dataset=dev_ds
-    )
-
+    trainer = Seq2SeqTrainer(model=model, args=training_args, train_dataset=train_ds, eval_dataset=dev_ds)
     torch.cuda.empty_cache()
-
-    checkpoint_path = get_last_checkpoint(OUTPUT_DIR)
-    trainer.train(resume_from_checkpoint=checkpoint_path)
-    trainer.save_model(OUTPUT_DIR)
+    last_checkpoint = get_last_checkpoint(OUTPUT_DIR)
+    trainer.train(resume_from_checkpoint=last_checkpoint)
+    save_file(model.state_dict(), f"{OUTPUT_DIR}/pytorch_model.safetensors")
     tokenizer.save_pretrained(OUTPUT_DIR)
 
     bleu_dev = generate_and_score(model, tokenizer, dev_ds)
