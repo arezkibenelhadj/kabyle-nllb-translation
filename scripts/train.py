@@ -2,7 +2,8 @@ import os
 os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-
+from google.colab import drive
+drive.mount('/content/drive')
 
 import json
 import torch
@@ -85,6 +86,7 @@ if __name__ == "__main__":
     train_ds = train_ds.map(add_language_tokens)
     dev_ds = dev_ds.map(add_language_tokens)
     test_ds = test_ds.map(add_language_tokens)
+
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     train_ds = train_ds.map(preprocess)
     dev_ds = dev_ds.map(preprocess)
@@ -129,7 +131,6 @@ if __name__ == "__main__":
         num_train_epochs=1,
         fp16=True,
         report_to="none",
-        save_safetensors=True,
         evaluation_strategy="steps",
         eval_steps=2000
     )
@@ -142,10 +143,8 @@ if __name__ == "__main__":
     )
 
     torch.cuda.empty_cache()
-    checkpoint_path = None
-    if os.path.isdir(OUTPUT_DIR):
-        checkpoint_path = get_last_checkpoint(OUTPUT_DIR)
 
+    checkpoint_path = get_last_checkpoint(OUTPUT_DIR)
     trainer.train(resume_from_checkpoint=checkpoint_path)
     trainer.save_model(OUTPUT_DIR)
     tokenizer.save_pretrained(OUTPUT_DIR)
