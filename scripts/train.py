@@ -129,7 +129,8 @@ if __name__ == "__main__":
         num_train_epochs=1,
         fp16=True,
         report_to="none",
-        evaluation_strategy="steps",
+        eval_strategy="steps",
+        save_format="safetensors",
         eval_steps=2000
     )
 
