@@ -77,8 +77,8 @@ dataset = load_dataset("json", data_files={
 # 5️⃣ Préprocessing
 # -----------------------------
 def preprocess(example):
-    inputs = example["kab"]
-    targets = example["en"]
+    inputs = example["source"]
+    targets = example["target"]
     model_inputs = tokenizer(inputs, max_length=128, truncation=True)
     with tokenizer.as_target_tokenizer():
         labels = tokenizer(targets, max_length=128, truncation=True)
