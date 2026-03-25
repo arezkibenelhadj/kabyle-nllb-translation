@@ -97,7 +97,6 @@ def preprocess(example):
         padding="max_length",
         truncation=True,
     )
-    # Tokenize targets
     labels = tokenizer(
         example[target_col],
         max_length=max_length,
