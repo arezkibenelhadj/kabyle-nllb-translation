@@ -87,17 +87,14 @@ print("Colonnes détectées :", input_col, "->", target_col)
 # PREPROCESS
 # ========================
 def preprocess(example):
-    inputs = example[input_col]
-    targets = example[target_col]
-
     model_inputs = tokenizer(
-        inputs,
+        example[input_col],
         max_length=128,
         truncation=True
     )
 
     labels = tokenizer(
-        targets,
+        text_target=example[target_col],
         max_length=128,
         truncation=True
     )
@@ -139,7 +136,7 @@ training_args = Seq2SeqTrainingArguments(
     num_train_epochs=1,
     logging_dir=os.path.join(save_path, "logs"),
     logging_steps=100,
-    evaluation_strategy="epoch",
+    eval_strategy="epoch",
     save_strategy="epoch",
     save_total_limit=2,
     predict_with_generate=True,
