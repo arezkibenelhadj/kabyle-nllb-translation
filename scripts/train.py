@@ -151,7 +151,6 @@ trainer = Seq2SeqTrainer(
     args=training_args,
     train_dataset=dataset["train"],
     eval_dataset=dataset["validation"],
-    tokenizer=tokenizer,
     data_collator=data_collator,
     compute_metrics=compute_metrics
 )
