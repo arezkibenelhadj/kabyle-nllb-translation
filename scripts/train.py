@@ -86,22 +86,28 @@ print("Colonnes détectées :", input_col, "->", target_col)
 # ========================
 # PREPROCESS
 # ========================
+input_col = "source"
+target_col = "target"
+max_length = 128  # ou ce qui convient
+
 def preprocess(example):
-    inputs = example[input_col]
-    targets = example[target_col]
-
     model_inputs = tokenizer(
-        inputs, max_length=128, truncation=True, padding="max_length"
+        example[input_col],
+        max_length=max_length,
+        padding="max_length",
+        truncation=True,
     )
-
-    # IMPORTANT : tokenizer for labels
+    # Tokenize targets
     labels = tokenizer(
-        targets, max_length=128, truncation=True, padding="max_length"
+        example[target_col],
+        max_length=max_length,
+        padding="max_length",
+        truncation=True,
     )
-
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
+tokenized_dataset = dataset.map(preprocess, batched=True)
 # ========================
 # COLLATOR
 # ========================
