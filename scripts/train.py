@@ -87,16 +87,16 @@ print("Colonnes détectées :", input_col, "->", target_col)
 # PREPROCESS
 # ========================
 def preprocess(example):
+    inputs = example[input_col]
+    targets = example[target_col]
+
     model_inputs = tokenizer(
-        example[input_col],
-        max_length=128,
-        truncation=True
+        inputs, max_length=128, truncation=True, padding="max_length"
     )
 
+    # IMPORTANT : tokenizer for labels
     labels = tokenizer(
-        text_target=example[target_col],
-        max_length=128,
-        truncation=True
+        targets, max_length=128, truncation=True, padding="max_length"
     )
 
     model_inputs["labels"] = labels["input_ids"]
@@ -143,6 +143,7 @@ training_args = Seq2SeqTrainingArguments(
     fp16=True,
     load_best_model_at_end=True,
     metric_for_best_model="bleu",
+    remove_unused_columns=False,
     report_to="none"
 )
 
