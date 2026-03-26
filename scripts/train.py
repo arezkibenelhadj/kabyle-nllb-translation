@@ -106,7 +106,11 @@ def preprocess(example):
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
-tokenized_dataset = dataset.map(preprocess, batched=True)
+tokenized_dataset = dataset.map(
+    preprocess,
+    batched=True,
+    remove_columns=dataset["train"].column_names
+)
 # ========================
 # COLLATOR
 # ========================
