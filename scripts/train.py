@@ -17,12 +17,6 @@ from peft import LoraConfig, get_peft_model
 import sacrebleu
 
 # ========================
-# MOUNT GOOGLE DRIVE
-# ========================
-from google.colab import drive
-drive.mount('/content/drive')
-
-# ========================
 # PATHS
 # ========================
 drive_path = "/content/drive/MyDrive"
