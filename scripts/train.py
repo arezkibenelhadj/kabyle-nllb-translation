@@ -17,6 +17,12 @@ from peft import LoraConfig, get_peft_model
 import sacrebleu
 
 # ========================
+# MOUNT GOOGLE DRIVE
+# ========================
+from google.colab import drive
+drive.mount('/content/drive')
+
+# ========================
 # PATHS
 # ========================
 drive_path = "/content/drive/MyDrive"
@@ -86,9 +92,7 @@ print("Colonnes détectées :", input_col, "->", target_col)
 # ========================
 # PREPROCESS
 # ========================
-input_col = "source"
-target_col = "target"
-max_length = 128  # ou ce qui convient
+max_length = 64
 
 def preprocess(example):
     model_inputs = tokenizer(
@@ -111,6 +115,7 @@ tokenized_dataset = dataset.map(
     batched=True,
     remove_columns=dataset["train"].column_names
 )
+
 # ========================
 # COLLATOR
 # ========================
@@ -134,24 +139,47 @@ def compute_metrics(eval_preds):
     return {"bleu": bleu.score}
 
 # ========================
+# AUTO RESUME CHECKPOINT
+# ========================
+def get_last_checkpoint(path):
+    checkpoints = [d for d in os.listdir(path) if d.startswith("checkpoint-")]
+    if len(checkpoints) == 0:
+        return None
+    checkpoints = sorted(checkpoints, key=lambda x: int(x.split("-")[-1]))
+    return os.path.join(path, checkpoints[-1])
+
+last_checkpoint = get_last_checkpoint(save_path)
+if last_checkpoint:
+    print(f"➡️ Reprise depuis checkpoint : {last_checkpoint}")
+else:
+    print("➡️ Aucun checkpoint trouvé, entraînement depuis zéro")
+
+# ========================
 # TRAINING
 # ========================
 training_args = Seq2SeqTrainingArguments(
-    output_dir=save_path,  # ✅ checkpoints sur Drive
+    output_dir=save_path,
     per_device_train_batch_size=2,
     per_device_eval_batch_size=2,
     gradient_accumulation_steps=1,
     learning_rate=2e-4,
     num_train_epochs=1,
     logging_dir=os.path.join(save_path, "logs"),
-    logging_steps=100,
-    eval_strategy="epoch",
-    save_strategy="epoch",
-    save_total_limit=2,
+    logging_steps=50,
+
+    # 🔥 IMPORTANT
+    save_strategy="steps",
+    save_steps=200,
+    save_total_limit=3,
+
+    evaluation_strategy="steps",
+    eval_steps=200,
+
     predict_with_generate=True,
     fp16=True,
     load_best_model_at_end=True,
     metric_for_best_model="bleu",
+
     remove_unused_columns=False,
     report_to="none"
 )
@@ -169,13 +197,16 @@ trainer = Seq2SeqTrainer(
 # TRAIN
 # ========================
 print("➡️ Entraînement...")
-trainer.train()
+trainer.train(resume_from_checkpoint=last_checkpoint)
 
 # ========================
-# SAVE FINAL (LoRA correct)
+# SAVE FINAL MODEL (FULL)
 # ========================
-print("➡️ Sauvegarde LoRA finale...")
-trainer.model.save_pretrained(save_path)
-tokenizer.save_pretrained(save_path)
+final_path = os.path.join(save_path, "final_model")
 
-print("✅ Sauvegarde OK :", save_path)
+print("➡️ Sauvegarde modèle final complet...")
+trainer.save_model(final_path)  # includes config
+
+tokenizer.save_pretrained(final_path)
+
+print("✅ Modèle final sauvegardé dans :", final_path)
