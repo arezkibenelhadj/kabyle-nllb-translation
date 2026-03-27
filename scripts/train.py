@@ -166,7 +166,7 @@ training_args = Seq2SeqTrainingArguments(
     save_steps=200,
     save_total_limit=3,
 
-    evaluation_strategy="steps",
+    eval_strategy="steps",
     eval_steps=200,
 
     predict_with_generate=True,
